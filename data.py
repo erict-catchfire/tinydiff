@@ -33,19 +33,12 @@ DIGIT_TO_SEGMENTS = {
     0: ("top", "upper_left", "upper_right", "lower_left", "lower_right", "bottom"),
     1: ("upper_right", "lower_right"),
     2: ("top", "upper_right", "middle", "lower_left", "bottom"),
-    3: ("top", "upper_right", "middle", "lower_right", "bottom"),
-    4: ("upper_left", "upper_right", "middle", "lower_right"),
-    5: ("top", "upper_left", "middle", "lower_right", "bottom"),
-    6: ("top", "upper_left", "middle", "lower_left", "lower_right", "bottom"),
-    7: ("top", "upper_right", "lower_right"),
-    8: ("top", "upper_left", "upper_right", "middle", "lower_left", "lower_right", "bottom"),
-    9: ("top", "upper_left", "upper_right", "middle", "lower_right", "bottom"),
 }
 
 
 @dataclass(frozen=True)
 class DatasetConfig:
-    digits: Sequence[int] = tuple(range(10))
+    digits: Sequence[int] = (0, 1, 2)
     num_samples: int = 2048
     frame_count: int = FRAME_COUNT
     frame_size: int = FRAME_SIZE
@@ -84,7 +77,7 @@ def render_digit_video(
     variant: int = 0,
 ) -> torch.Tensor:
     if digit not in DIGIT_TO_SEGMENTS:
-        raise ValueError(f"Unsupported digit {digit}. Use 0-9.")
+        raise ValueError(f"Unsupported digit {digit}. Use 0, 1, or 2.")
 
     active_segments = DIGIT_TO_SEGMENTS[digit]
     video = torch.zeros(frame_count, 1, frame_size, frame_size, dtype=torch.float32)
@@ -119,6 +112,9 @@ class TinyVideoDataset(Dataset):
         self.digits = tuple(int(d) for d in config.digits)
         if not self.digits:
             raise ValueError("DatasetConfig.digits must contain at least one digit.")
+        invalid_digits = sorted(set(self.digits) - set(DIGIT_TO_SEGMENTS))
+        if invalid_digits:
+            raise ValueError(f"Unsupported digits in dataset config: {invalid_digits}. Use only 0, 1, or 2.")
 
     def __len__(self) -> int:
         return self.config.num_samples
@@ -137,7 +133,7 @@ class TinyVideoDataset(Dataset):
 
 
 def build_dataset(
-    digits: Iterable[int] = tuple(range(10)),
+    digits: Iterable[int] = (0, 1, 2),
     num_samples: int = 2048,
 ) -> TinyVideoDataset:
     return TinyVideoDataset(DatasetConfig(digits=tuple(digits), num_samples=num_samples))
@@ -222,7 +218,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    for digit in range(10):
+    for digit in range(3):
         video = render_digit_video(digit=digit, variant=args.variant)
         output_path = args.out_dir / f"digit_{digit}.gif"
         save_preview_gif(video, output_path, fps=args.fps)

@@ -21,7 +21,7 @@ class TinyDiffusionModel(nn.Module):
         self.latent_size = latent_size
         self.latent_dim = frame_count * latent_size * latent_size
 
-        self.digit_embedding = nn.Embedding(10, cond_dim)
+        self.digit_embedding = nn.Embedding(3, cond_dim)
         self.time_proj = nn.Sequential(
             nn.Linear(4, time_dim),
             nn.SiLU(),
@@ -69,9 +69,11 @@ class DiffusionSchedule:
         self.betas = betas
         self.alphas = alphas
         self.alpha_bars = alpha_bars
+        self.alpha_bars_prev = torch.cat([torch.ones(1, device=self.device), alpha_bars[:-1]])
         self.sqrt_alpha_bars = torch.sqrt(alpha_bars)
         self.sqrt_one_minus_alpha_bars = torch.sqrt(1.0 - alpha_bars)
         self.sqrt_recip_alphas = torch.rsqrt(alphas)
+        self.posterior_variance = betas * (1.0 - self.alpha_bars_prev) / (1.0 - alpha_bars)
 
     def to(self, device: str | torch.device) -> "DiffusionSchedule":
         return DiffusionSchedule(
@@ -90,21 +92,21 @@ class DiffusionSchedule:
     def p_sample(self, model: TinyDiffusionModel, noisy_latent: torch.Tensor, digits: torch.Tensor, step_index: int) -> torch.Tensor:
         batch_size = noisy_latent.shape[0]
         t = torch.full((batch_size,), step_index, device=noisy_latent.device, dtype=torch.long)
-        predicted_noise = model(noisy_latent, digits, t, self.num_steps)
+        predicted_x0 = model(noisy_latent, digits, t, self.num_steps).clamp(-1.0, 1.0)
 
         beta_t = self.betas[step_index]
         alpha_t = self.alphas[step_index]
         alpha_bar_t = self.alpha_bars[step_index]
-
-        mean = self.sqrt_recip_alphas[step_index] * (
-            noisy_latent - (beta_t / torch.sqrt(1.0 - alpha_bar_t)) * predicted_noise
-        )
+        alpha_bar_prev = self.alpha_bars_prev[step_index]
+        posterior_mean_coef_x0 = beta_t * torch.sqrt(alpha_bar_prev) / (1.0 - alpha_bar_t)
+        posterior_mean_coef_xt = torch.sqrt(alpha_t) * (1.0 - alpha_bar_prev) / (1.0 - alpha_bar_t)
+        mean = posterior_mean_coef_x0 * predicted_x0 + posterior_mean_coef_xt * noisy_latent
 
         if step_index == 0:
-            return mean
+            return predicted_x0
 
         noise = torch.randn_like(noisy_latent)
-        return mean + torch.sqrt(beta_t) * noise
+        return mean + torch.sqrt(self.posterior_variance[step_index]) * noise
 
 
 def encode_video(video: torch.Tensor, latent_size: int = 8) -> torch.Tensor:

@@ -13,18 +13,18 @@ from model import DiffusionSchedule, TinyDiffusionModel, count_parameters, encod
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train a tiny conditional video diffusion model.")
-    parser.add_argument("--steps", type=int, default=2000, help="Number of gradient steps.")
-    parser.add_argument("--batch-size", type=int, default=32, help="Batch size.")
+    parser.add_argument("--steps", type=int, default=10000, help="Number of gradient steps.")
+    parser.add_argument("--batch-size", type=int, default=64, help="Batch size.")
     parser.add_argument("--num-samples", type=int, default=4096, help="Procedurally generated training samples.")
-    parser.add_argument("--digits", type=int, nargs="*", default=list(range(10)), help="Digits to include in training.")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
+    parser.add_argument("--digits", type=int, nargs="*", default=[0, 1, 2], help="Digits to include in training.")
+    parser.add_argument("--lr", type=float, default=3e-3, help="Learning rate.")
     parser.add_argument("--hidden-dim", type=int, default=64, help="Hidden width of the tiny MLP denoiser.")
     parser.add_argument("--latent-size", type=int, default=8, help="Spatial latent resolution per frame.")
-    parser.add_argument("--diffusion-steps", type=int, default=50, help="Number of diffusion steps.")
+    parser.add_argument("--diffusion-steps", type=int, default=10, help="Number of diffusion steps.")
     parser.add_argument("--save-path", type=Path, default=Path("tinyvid.pt"), help="Checkpoint output path.")
-    parser.add_argument("--device", type=str, default="cpu", help="Device string, for example cpu or cuda.")
+    parser.add_argument("--device", type=str, default="cuda", help="Device string, for example cpu or cuda.")
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
-    parser.add_argument("--log-every", type=int, default=100, help="Print every N training steps.")
+    parser.add_argument("--log-every", type=int, default=5, help="Print every N training steps.")
     return parser.parse_args()
 
 
@@ -70,9 +70,9 @@ def main() -> None:
         timesteps = torch.randint(0, schedule.num_steps, (digits.shape[0],), device=device)
         noise = torch.randn_like(latents)
         noisy_latents = schedule.q_sample(latents, noise, timesteps)
-        predicted_noise = model(noisy_latents, digits, timesteps, schedule.num_steps)
+        predicted_latents = model(noisy_latents, digits, timesteps, schedule.num_steps)
 
-        loss = F.mse_loss(predicted_noise, noise)
+        loss = F.mse_loss(predicted_latents, latents)
 
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -89,6 +89,7 @@ def main() -> None:
         "latent_size": args.latent_size,
         "hidden_dim": args.hidden_dim,
         "diffusion_steps": args.diffusion_steps,
+        "prediction_target": "x0",
     }
     args.save_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(checkpoint, args.save_path)
