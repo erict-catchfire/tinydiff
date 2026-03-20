@@ -1,6 +1,6 @@
 # TinyDiff
 
-Small conditional video diffusion model for procedurally generated animated digits.
+This is a small diffusion model for video generation
 
 ## 1. Dataset Preparation
 
@@ -55,10 +55,10 @@ python train.py \
 
 ## 4. Inference
 
-Sample a GIF from a trained checkpoint:
+Generate a video from a trained checkpoint:
 
 ```bash
-python test.py --checkpoint outputs/tinyvid_relu_100k_h128.pt --digit 2 --out outputs/output_2.gif --device cpu
+python test.py --checkpoint outputs/tinyvid_relu_100k_h128.pt --digit 2 --out outputs/output_2.gif --device cuda
 ```
 
 Sample outputs:
