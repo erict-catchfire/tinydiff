@@ -3,3 +3,5 @@ __pycache__/
 dataset_cache.pt
 *.pla
 *.v
+!hardware/rtl/
+!hardware/rtl/**/*.v

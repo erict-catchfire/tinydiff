@@ -30,7 +30,7 @@ def _module_name_from_path(pla_path: Path) -> str:
 
 def _parse_unit_metadata_from_filename(pla_path: Path) -> dict[str, int | list[int] | str]:
     pattern = re.compile(
-        r"^.*x(?P<x>\d+)_y(?P<y>\d+)_w_(?P<weights>.+?)_b_(?P<bias>-?\d+)(?:_s\d+)?$"
+        r"^.*x(?P<x>\d+)_y(?P<y>\d+)_w_(?P<weights>.+?)(?:_b_(?P<bias>-?\d+))?(?:_s\d+)?$"
     )
     match = pattern.match(pla_path.stem)
     if not match:
@@ -38,7 +38,7 @@ def _parse_unit_metadata_from_filename(pla_path: Path) -> dict[str, int | list[i
             "x": -1,
             "y": -1,
             "weights": [],
-            "bias": 0,
+            "bias": "",
             "source_name": pla_path.name,
         }
 
@@ -48,7 +48,7 @@ def _parse_unit_metadata_from_filename(pla_path: Path) -> dict[str, int | list[i
         "x": int(match.group("x")),
         "y": int(match.group("y")),
         "weights": weights,
-        "bias": int(match.group("bias")),
+        "bias": int(match.group("bias")) if match.group("bias") is not None else "",
         "source_name": pla_path.name,
     }
 
@@ -254,7 +254,8 @@ def _build_metadata_text(
     lines.append(f"x={unit_meta['x']}")
     lines.append(f"y={unit_meta['y']}")
     lines.append(f"weights={unit_meta['weights']}")
-    lines.append(f"bias={unit_meta['bias']}")
+    if unit_meta["bias"] != "":
+        lines.append(f"bias={unit_meta['bias']}")
     lines.append("")
 
     for out_idx, (output_name, cubes) in enumerate(zip(output_labels, output_cubes)):

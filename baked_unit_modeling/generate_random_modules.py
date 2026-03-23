@@ -34,8 +34,8 @@ def _random_int8(rng: random.Random) -> int:
     return rng.randint(INT8_MIN, INT8_MAX)
 
 
-def _sample_filename(x: int, y: int, weights: list[int], bias: int, sample_idx: int) -> str:
-    base_name = default_output_filename(x=x, y=y, weights=weights, bias=bias).removesuffix(".pla")
+def _sample_filename(x: int, y: int, weights: list[int], sample_idx: int) -> str:
+    base_name = default_output_filename(x=x, y=y, weights=weights).removesuffix(".pla")
     return f"{base_name}_s{sample_idx:03d}.pla"
 
 
@@ -57,7 +57,6 @@ def _latest_metadata_summary(metadata_path: Path) -> str:
         "x=",
         "y=",
         "weights=",
-        "bias=",
         "max_or_across_outputs=",
         "combined_and_depth_histogram_1_to_24=",
     )
@@ -89,7 +88,7 @@ def generate_random_modules(
 
     generated_verilog_paths: list[Path] = []
     for x, y in ordered_configs:
-        seen: set[tuple[tuple[int, ...], int]] = set()
+        seen: set[tuple[int, ...]] = set()
         generated = 0
         attempts = 0
         max_attempts = samples_per_config * 20
@@ -104,19 +103,17 @@ def generate_random_modules(
                     )
 
                 weights = [_random_int8(rng) for _ in range(x)]
-                bias = _random_int8(rng)
-                key = (tuple(weights), bias)
+                key = tuple(weights)
                 if key in seen:
                     continue
                 seen.add(key)
 
-                pla_filename = _sample_filename(x=x, y=y, weights=weights, bias=bias, sample_idx=generated)
+                pla_filename = _sample_filename(x=x, y=y, weights=weights, sample_idx=generated)
                 pla_path = pla_dir / pla_filename
                 generate_pla_truth_table(
                     x=x,
                     y=y,
                     weights=weights,
-                    bias=bias,
                     output_path=pla_path,
                 )
                 verilog_path = convert_pla_to_verilog(pla_path=pla_path, output_dir=verilog_dir)

@@ -60,7 +60,6 @@ def _split_sizes(x: int, y: int) -> list[int]:
 def _compute_outputs_signed(
     input_values_u8: tuple[int, ...],
     weights: list[int],
-    bias: int,
     y: int,
 ) -> list[int]:
     signed_inputs = [_signed_from_u8(value) for value in input_values_u8]
@@ -72,8 +71,6 @@ def _compute_outputs_signed(
     for out_idx, chunk_size in enumerate(split_sizes):
         end = start + chunk_size
         partial_sum = sum(products[start:end])
-        if out_idx == 0:
-            partial_sum += bias
         outputs.append(_clamp_signed_8(partial_sum))
         start = end
     return outputs
@@ -99,19 +96,17 @@ def generate_pla_truth_table(
     x: int,
     y: int,
     weights: list[int],
-    bias: int,
     output_path: str | Path,
 ) -> Path:
     """
     Generate an Espresso-compatible PLA truth table for a baked unit.
 
     Rules:
-    - Arithmetic is signed int8 for inputs/weights/bias semantics.
+    - Arithmetic is signed int8 for inputs/weights semantics.
     - Outputs are signed and saturating-clamped to [-128, 127].
     - Inputs are split into y contiguous groups.
     - Group sizes use floor/ceil partitioning (earlier outputs get floor-size groups).
-    - Bias is added exactly once to output 0.
-    - Each output is a clamped partial sum of its group.
+    - Each output is a clamped partial sum of its group (no bias term).
 
     Parameters
     ----------
@@ -121,8 +116,6 @@ def generate_pla_truth_table(
         Number of 8-bit outputs (1 <= y <= x).
     weights : list[int]
         Signed int8 fixed weights. Must have length x.
-    bias : int
-        Signed int8 fixed bias.
     output_path : str | Path
         Destination PLA file path.
     """
@@ -137,7 +130,6 @@ def generate_pla_truth_table(
 
     for idx, weight in enumerate(weights):
         _validate_signed_byte(weight, f"weights[{idx}]")
-    _validate_signed_byte(bias, "bias")
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,7 +152,6 @@ def generate_pla_truth_table(
             outputs_signed = _compute_outputs_signed(
                 input_values_u8=input_values_u8,
                 weights=weights,
-                bias=bias,
                 y=y,
             )
 
@@ -173,7 +164,7 @@ def generate_pla_truth_table(
     return output_path
 
 
-def default_output_filename(x: int, y: int, weights: list[int], bias: int) -> str:
+def default_output_filename(x: int, y: int, weights: list[int]) -> str:
     weight_text = "_".join(str(weight) for weight in weights)
-    return f"tt_x{x}_y{y}_w_{weight_text}_b_{bias}.pla"
+    return f"tt_x{x}_y{y}_w_{weight_text}.pla"
 
